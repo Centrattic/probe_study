@@ -7,6 +7,9 @@
       --output eval_result.csv
 """
 
+import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 # could use lambdaCloud or could just start with quantized model hopefully
 
 import asyncio
@@ -104,7 +107,7 @@ def load_model(model_name):
         enable_prefix_caching=True,
         enable_lora=False,
         tensor_parallel_size=torch.cuda.device_count(),
-        max_num_seqs=32,
+        max_num_seqs=1, # vs 32, reduce memory use
         gpu_memory_utilization=0.95,
         max_model_len=2048,
     )
@@ -187,6 +190,9 @@ def main(
         # pick the final token's vector
         vec = all_states[layer_index][0, -1, :].cpu().numpy()
         hidden_vecs.append(vec)
+
+        del inputs, out, all_states, vec
+        torch.cuda.empty_cache()
 
     X = np.stack(hidden_vecs, axis=0)  # shape (N, hidden_dim)
 
