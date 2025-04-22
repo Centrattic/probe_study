@@ -23,7 +23,7 @@ import numpy as np
 import fire
 
 from vllm import LLM, SamplingParams
-from judge import OpenAiJudge
+from judge import LlamaJudge
 
 # NEW: for activation extraction & downstream regression
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -67,7 +67,7 @@ class Question():
             judge_prompts: dict,
             temperature: float = 1,
             system: str = None,
-            judge: str = "gpt-4o",
+            judge: str = "llama-8b",
             **ignored_extra_args
         ):
         self.id = id
@@ -75,9 +75,12 @@ class Question():
         self.temperature = temperature
         self.system = system
         # build one OpenAiJudge per metric
-        self.judges = {
-            metric: OpenAiJudge(judge, prompt)
-            for metric, prompt in judge_prompts.items()
+        self.judges = {metric: LlamaJudge(
+        model_name_or_path="meta-llama/Llama-3.1-8B-Instruct",
+        prompt_template=prompt,
+        device="cpu"               # or "cpu" to avoid GPU contention
+        )
+        for metric, prompt in judge_prompts.items()
         }
 
     def get_input(self, n_per_question):
@@ -101,13 +104,14 @@ class Question():
         return df
 
 
-def load_model(model_name):
+def load_model(model):
     load_kwargs = dict(
-        model=model_name,
+        model=model,
         enable_prefix_caching=True,
-        enable_lora=False,
+        enable_lora=False, 
         tensor_parallel_size=torch.cuda.device_count(),
-        max_num_seqs=1, # vs 32, reduce memory use
+        disable_custom_all_reduce=True,
+        max_num_seqs=4, # to save on memory
         gpu_memory_utilization=0.95,
         max_model_len=2048,
     )
