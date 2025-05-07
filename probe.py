@@ -25,12 +25,6 @@ def main(
     layer_k: int = 0,
     output: str = "eval_result.csv",
 ):
-    """
-    1) Runs the existing emergent-misalignment eval using vLLM + OpenAI judge.
-    2) In parallel, uses 🤗 Transformers to extract hidden states at layer_k.
-    3) Fits PCA + linear regression to predict the judge score from those activations.
-    4) Writes full eval CSV + prints out R² for the probe at layer_k.
-    """
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
     # collect all judge results, load or run if not computed
