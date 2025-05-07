@@ -13,11 +13,14 @@ import torch
 from vllm import LLM, SamplingParams
 
 from judge import LlamaJudge
+import os
+os.environ["VLLM_USE_PYTORCH_KERNELS"] = "1"
+
 
 torch.cuda.empty_cache()
 
 
-def sample(llm, conversations, top_p=1, max_tokens=600, temperature=1, stop=[], min_tokens=1):
+def sample(llm, conversations, top_p=1, max_tokens=256, temperature=1, stop=[], min_tokens=1): # 256 max tokens vs. 600
     tokenizer = llm.get_tokenizer()
     sampling_params = SamplingParams(
         temperature=temperature,
@@ -34,7 +37,8 @@ def sample(llm, conversations, top_p=1, max_tokens=600, temperature=1, stop=[], 
 
     generate_kwargs = {
         "sampling_params": sampling_params,
-        "use_tqdm": True
+        "use_tqdm": True,
+        "log_stats":True
     }
     completions = llm.generate(texts, **generate_kwargs)
     answers = [completion.outputs[0].text for completion in completions]
@@ -100,7 +104,7 @@ def load_model(model):
         disable_custom_all_reduce=True,
         max_num_seqs=4, # to save on memory
         gpu_memory_utilization=0.95,
-        max_model_len=2048,
+        max_model_len=1024 # vs 2048
     )
     return LLM(**load_kwargs)
 
@@ -118,13 +122,16 @@ def load_questions(path):
 def main(model, questions, n_per_question=100, output='eval_result.csv'):
     """Evaluate a model on all questions form the evaluation yaml file"""
     llm = load_model(model)
+    print("model loaded")
     questions = load_questions(questions)
+    print("questions processed")
     outputs = []
     for question in questions:
         outputs.append(asyncio.run(question.eval(llm, n_per_question)))
+    print("outputs received")
     outputs = pd.concat(outputs)
     outputs.to_csv(output, index=False)
-
+    print("outputs saved")
 
 if __name__ == "__main__":
     import fire
